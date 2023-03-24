@@ -1,7 +1,7 @@
 # MIT 6.824/6.5840 SPRING 2023 Distributed Systems Labs
 
 - [x] Lab1
-- [ ] Lab2A
+- [x] Lab2A
 - [ ] Lab2B
 - [ ] Lab2C
 - [ ] Lab2D
