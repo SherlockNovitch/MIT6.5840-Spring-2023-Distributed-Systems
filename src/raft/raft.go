@@ -169,9 +169,11 @@ func (rf *Raft) killed() bool {
 }
 
 func (rf *Raft) startLeaderElection() {
+	rf.mu.Lock()
 	rf.currentTerm += 1 //Increment currentTerm
 	rf.votedFor = rf.me //Vote for self
 	rf.voteCount = 1
+	rf.mu.Unlock()
 	for peerId := range rf.peers { //Send RequestVote RPCs to all other servers
 		args := RequestVoteArgs{Term: rf.currentTerm, CandidateId: rf.me}
 		if peerId != rf.me {
@@ -193,7 +195,7 @@ func (rf *Raft) sendHeartBeats() {
 	for rf.isLeader {
 		for peerId := range rf.peers {
 			if peerId != rf.me { //May TODO
-				rf.sendAppendEntries(peerId, &AppendEntriesArgs{Term: rf.currentTerm, LeaderId: rf.me}, &AppendEntriesReply{})
+				go rf.sendAppendEntries(peerId, &AppendEntriesArgs{Term: rf.currentTerm, LeaderId: rf.me}, &AppendEntriesReply{})
 			}
 		}
 		time.Sleep(time.Duration(50) * time.Millisecond)
@@ -224,6 +226,8 @@ type RequestVoteReply struct {
 }
 
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	// Your code here (2A, 2B).
 	reply.Term = rf.currentTerm
 	if args.Term < rf.currentTerm {
@@ -244,12 +248,12 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 //
 // look at the comments in ../labrpc/labrpc.go for more details.
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) {
-	if ok := rf.peers[server].Call("Raft.RequestVote", args, reply); ok {
+	if rf.peers[server].Call("Raft.RequestVote", args, reply) {
+		rf.mu.Lock()
+		defer rf.mu.Unlock()
 		rf.compareAndSetTerm(reply.Term)
 		if reply.VoteGranted {
-			rf.mu.Lock()
 			rf.voteCount += 1
-			rf.mu.Unlock()
 		}
 	}
 }
@@ -269,6 +273,8 @@ type AppendEntriesReply struct {
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) { //TODO
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	reply.Term = rf.currentTerm
 	if args.Term < rf.currentTerm {
 		return
@@ -278,7 +284,9 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 }
 
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) {
-	if ok := rf.peers[server].Call("Raft.AppendEntries", args, reply); ok {
+	if rf.peers[server].Call("Raft.AppendEntries", args, reply) {
+		rf.mu.Lock()
+		defer rf.mu.Unlock()
 		rf.compareAndSetTerm(reply.Term)
 	}
 }
